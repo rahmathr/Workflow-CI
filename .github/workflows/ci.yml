@@ -83,8 +83,7 @@ jobs:
           echo "Building Docker image: $IMAGE_NAME untuk run: $RUN_ID"
           mlflow models build-docker \
             --model-uri "runs:/$RUN_ID/random_forest_ci" \
-            --name "$IMAGE_NAME" \
-            --enable-mlserver
+            --name "$IMAGE_NAME"
 
       - name: Push Docker Image
         run: |
