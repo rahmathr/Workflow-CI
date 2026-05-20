@@ -35,6 +35,10 @@ jobs:
 
       - name: Run MLflow Project
         run: |
+          # Set path untuk run_id.txt di workspace root
+          export RUN_ID_PATH=$GITHUB_WORKSPACE/run_id.txt
+          echo "RUN_ID_PATH=$RUN_ID_PATH" >> $GITHUB_ENV
+
           mlflow run MLProject \
             --env-manager=local \
             -P n_estimators=100 \
@@ -44,7 +48,23 @@ jobs:
 
       - name: Read Run ID
         run: |
-          RUN_ID=$(cat run_id.txt)
+          if [ -f "$RUN_ID_PATH" ]; then
+            RUN_ID=$(cat $RUN_ID_PATH)
+          else
+            # Fallback: ambil dari DagsHub API
+            RUN_ID=$(python -c "
+          import mlflow, os
+          import dagshub
+          dagshub.init(repo_owner='rahmathr', repo_name='Eksperimen_SML_Rahmat', mlflow=True)
+          client = mlflow.tracking.MlflowClient()
+          runs = client.search_runs(
+              experiment_ids=['0'],
+              order_by=['attributes.start_time DESC'],
+              max_results=1
+          )
+          print(runs[0].info.run_id)
+          ")
+          fi
           echo "RUN_ID=$RUN_ID" >> $GITHUB_ENV
           echo "Run ID: $RUN_ID"
 
@@ -57,7 +77,6 @@ jobs:
             feature_importance.png
             roc_curve.png
             classification_report.txt
-            run_id.txt
           retention-days: 30
 
       - name: Login to Docker Hub
