@@ -1,12 +1,6 @@
 """
-modelling.py
-============
-Training Random Forest untuk MLflow Project (Kriteria 3).
-Support argumen CLI agar bisa dipanggil dari MLProject.
-
-Penggunaan:
-    python modelling.py
-    python modelling.py --n_estimators 200 --max_depth 10
+modelling.py - untuk MLflow Project (Kriteria 3)
+Working directory saat dijalankan MLflow = folder MLProject/
 """
 
 import argparse
@@ -27,13 +21,12 @@ import dagshub
 
 # ── Argumen CLI ────────────────────────────────────────────────────────────────
 parser = argparse.ArgumentParser()
-parser.add_argument("--n_estimators",     type=int,   default=100)
-parser.add_argument("--max_depth",        type=str,   default="None")
-parser.add_argument("--min_samples_split",type=int,   default=5)
-parser.add_argument("--min_samples_leaf", type=int,   default=2)
+parser.add_argument("--n_estimators",      type=int, default=100)
+parser.add_argument("--max_depth",         type=str, default="None")
+parser.add_argument("--min_samples_split", type=int, default=5)
+parser.add_argument("--min_samples_leaf",  type=int, default=2)
 args = parser.parse_args()
 
-# Konversi max_depth
 max_depth = None if args.max_depth == "None" else int(args.max_depth)
 
 # ── Koneksi ke DagsHub ─────────────────────────────────────────────────────────
@@ -44,9 +37,10 @@ dagshub.init(
 )
 
 # ── Load Dataset ───────────────────────────────────────────────────────────────
+# Path relatif dari dalam folder MLProject/ (MLflow sudah cd ke sini)
 print("Memuat dataset...")
-train_df = pd.read_csv('MLProject/heart_train.csv')
-test_df  = pd.read_csv('MLProject/heart_test.csv')
+train_df = pd.read_csv('heart_train.csv')
+test_df  = pd.read_csv('heart_test.csv')
 
 X_train = train_df.drop('target', axis=1)
 y_train = train_df['target']
@@ -63,8 +57,7 @@ def plot_confusion_matrix(y_true, y_pred, path='confusion_matrix.png'):
                 xticklabels=['Tidak Sakit', 'Sakit'],
                 yticklabels=['Tidak Sakit', 'Sakit'])
     plt.title('Confusion Matrix', fontweight='bold')
-    plt.ylabel('Aktual')
-    plt.xlabel('Prediksi')
+    plt.ylabel('Aktual'); plt.xlabel('Prediksi')
     plt.tight_layout()
     plt.savefig(path, dpi=150, bbox_inches='tight')
     plt.close()
@@ -89,8 +82,7 @@ def plot_roc_curve(y_true, y_proba, path='roc_curve.png'):
     plt.figure(figsize=(6, 4))
     plt.plot(fpr, tpr, color='#5C6BC0', lw=2, label=f'AUC = {auc:.3f}')
     plt.plot([0, 1], [0, 1], 'k--', lw=1)
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
+    plt.xlabel('False Positive Rate'); plt.ylabel('True Positive Rate')
     plt.title('ROC Curve', fontweight='bold')
     plt.legend(loc='lower right')
     plt.tight_layout()
@@ -114,7 +106,6 @@ with mlflow.start_run(run_name="RandomForest_CI"):
     y_pred       = model.predict(X_test)
     y_pred_proba = model.predict_proba(X_test)[:, 1]
 
-    # Metrics
     accuracy  = accuracy_score(y_test, y_pred)
     precision = precision_score(y_test, y_pred)
     recall    = recall_score(y_test, y_pred)
@@ -127,14 +118,13 @@ with mlflow.start_run(run_name="RandomForest_CI"):
     print(f"F1-Score  : {f1:.4f}")
     print(f"ROC-AUC   : {roc_auc:.4f}")
 
-    # Log params
+    # Log params & metrics
     mlflow.log_param("n_estimators",      args.n_estimators)
-    mlflow.log_param("max_depth",         max_depth)
+    mlflow.log_param("max_depth",         str(max_depth))
     mlflow.log_param("min_samples_split", args.min_samples_split)
     mlflow.log_param("min_samples_leaf",  args.min_samples_leaf)
     mlflow.log_param("random_state",      42)
 
-    # Log metrics
     mlflow.log_metric("accuracy",  accuracy)
     mlflow.log_metric("precision", precision)
     mlflow.log_metric("recall",    recall)
@@ -145,21 +135,15 @@ with mlflow.start_run(run_name="RandomForest_CI"):
     mlflow.sklearn.log_model(model, "random_forest_ci")
 
     # Log artefak
-    cm_path  = plot_confusion_matrix(y_test, y_pred)
-    fi_path  = plot_feature_importance(model, list(X_train.columns))
-    roc_path = plot_roc_curve(y_test, y_pred_proba)
+    mlflow.log_artifact(plot_confusion_matrix(y_test, y_pred),               "plots")
+    mlflow.log_artifact(plot_feature_importance(model, list(X_train.columns)),"plots")
+    mlflow.log_artifact(plot_roc_curve(y_test, y_pred_proba),                 "plots")
 
-    mlflow.log_artifact(cm_path,  "plots")
-    mlflow.log_artifact(fi_path,  "plots")
-    mlflow.log_artifact(roc_path, "plots")
-
-    # Log classification report
     report_path = "classification_report.txt"
     with open(report_path, 'w') as f:
         f.write(classification_report(y_test, y_pred))
     mlflow.log_artifact(report_path, "reports")
 
-    run_id = mlflow.active_run().info.run_id
-    print(f"\nRun ID: {run_id}")
+    print(f"\nRun ID: {mlflow.active_run().info.run_id}")
 
 print("\nSelesai!")
