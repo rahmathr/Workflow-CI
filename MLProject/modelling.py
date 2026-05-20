@@ -1,6 +1,5 @@
 """
 modelling.py - untuk MLflow Project (Kriteria 3)
-Working directory saat dijalankan MLflow = folder MLProject/
 """
 
 import argparse
@@ -37,7 +36,6 @@ dagshub.init(
 )
 
 # ── Load Dataset ───────────────────────────────────────────────────────────────
-# Path relatif dari dalam folder MLProject/ (MLflow sudah cd ke sini)
 print("Memuat dataset...")
 train_df = pd.read_csv('heart_train.csv')
 test_df  = pd.read_csv('heart_test.csv')
@@ -91,7 +89,7 @@ def plot_roc_curve(y_true, y_proba, path='roc_curve.png'):
     return path
 
 # ── Training + MLflow Manual Logging ──────────────────────────────────────────
-with mlflow.start_run(run_name="RandomForest_CI"):
+with mlflow.start_run(run_name="RandomForest_CI") as run:
 
     model = RandomForestClassifier(
         n_estimators=args.n_estimators,
@@ -135,15 +133,20 @@ with mlflow.start_run(run_name="RandomForest_CI"):
     mlflow.sklearn.log_model(model, "random_forest_ci")
 
     # Log artefak
-    mlflow.log_artifact(plot_confusion_matrix(y_test, y_pred),               "plots")
-    mlflow.log_artifact(plot_feature_importance(model, list(X_train.columns)),"plots")
-    mlflow.log_artifact(plot_roc_curve(y_test, y_pred_proba),                 "plots")
+    mlflow.log_artifact(plot_confusion_matrix(y_test, y_pred),                "plots")
+    mlflow.log_artifact(plot_feature_importance(model, list(X_train.columns)), "plots")
+    mlflow.log_artifact(plot_roc_curve(y_test, y_pred_proba),                  "plots")
 
     report_path = "classification_report.txt"
     with open(report_path, 'w') as f:
         f.write(classification_report(y_test, y_pred))
     mlflow.log_artifact(report_path, "reports")
 
-    print(f"\nRun ID: {mlflow.active_run().info.run_id}")
+    # Simpan run_id ke file agar bisa dibaca workflow
+    run_id = run.info.run_id
+    print(f"\nRun ID: {run_id}")
+    with open("run_id.txt", "w") as f:
+        f.write(run_id)
+    print("Run ID disimpan ke run_id.txt")
 
 print("\nSelesai!")
